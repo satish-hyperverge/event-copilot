@@ -139,7 +139,7 @@ export default function App() {
 
           <main className="flex-1 overflow-y-auto">
             <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<Navigate to="/capture" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/attendees" element={<AttendeeList />} />
               <Route path="/attendees/:id" element={<AttendeeProfile />} />
