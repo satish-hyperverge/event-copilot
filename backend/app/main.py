@@ -23,7 +23,7 @@ for _local in ["http://localhost:5173", "http://localhost:3000"]:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
-    allow_origin_regex=r"https://.*\.up\.railway\.app",  # all Railway preview URLs
+    allow_origin_regex=r"https://.*\.(up\.railway\.app|vercel\.app)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

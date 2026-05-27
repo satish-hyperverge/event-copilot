@@ -12,7 +12,8 @@ client = AsyncOpenAI(api_key=settings.openai_api_key)
 
 
 def ai_configured() -> bool:
-    return bool(settings.openai_api_key.strip())
+    key = settings.openai_api_key.strip()
+    return bool(key) and key.startswith(("sk-", "sk-proj-"))
 
 HOOK_SYSTEM_PROMPT = """You are an expert B2B sales researcher helping a fintech/credit intelligence company
 craft highly personalized outreach hooks for conference prospects.
