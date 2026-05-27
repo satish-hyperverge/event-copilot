@@ -3,6 +3,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from sqlmodel import Session, select, or_
 
+from ..config import get_settings
 from ..database import get_session
 from ..models.prospect import (
     Prospect, ProspectCreate, ProspectUpdate, ProspectRead,
@@ -13,6 +14,11 @@ from ..services.scoring_service import score_prospect
 from ..services.assignment_service import get_icp_reasoning, get_outreach_mode, assign_owner
 
 router = APIRouter(prefix="/prospects", tags=["prospects"])
+settings = get_settings()
+
+
+def _using_supabase() -> bool:
+    return settings.data_backend == "supabase"
 
 
 @router.post("/import")
@@ -45,6 +51,9 @@ def list_prospects(
     limit: int = Query(default=100, le=500),
     session: Session = Depends(get_session),
 ):
+    if _using_supabase():
+        return []
+
     query = select(Prospect)
 
     if event_id:

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { aiApi, outreachApi, type Prospect, type HookResult } from '@/lib/api'
-import { Zap, Copy, Check, Loader2, ChevronDown, ChevronUp, BookOpen, RefreshCw } from 'lucide-react'
+import { aiApi, outreachApi, linkedinApi, type Prospect, type HookResult } from '@/lib/api'
+import { Zap, Copy, Check, Loader2, ChevronDown, ChevronUp, BookOpen, RefreshCw, Linkedin, ExternalLink } from 'lucide-react'
 
 interface ResearchForm {
   linkedin_bio: string
@@ -28,6 +28,9 @@ export function HookGenerator({ prospect, onHookSelected }: Props) {
   const [selectedHook, setSelectedHook] = useState('')
   const [showInputs, setShowInputs] = useState(true)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [linkedinUrl, setLinkedinUrl] = useState('')
+  const [isFetching, setIsFetching] = useState(false)
+  const [fetchError, setFetchError] = useState('')
 
   // Load cached research if it exists
   const { data: cached, isSuccess: hasCached } = useQuery({
@@ -67,6 +70,62 @@ export function HookGenerator({ prospect, onHookSelected }: Props) {
   })
 
   const [isGenerating, setIsGenerating] = useState(false)
+
+  // Auto-fetch from LinkedIn
+  const fetchFromLinkedIn = async () => {
+    const url = linkedinUrl || prospect.linkedin_url
+    if (!url) {
+      setFetchError('No LinkedIn URL provided')
+      return
+    }
+
+    setIsFetching(true)
+    setFetchError('')
+
+    try {
+      const response = await linkedinApi.scrapeProfile(url)
+
+      console.log('LinkedIn API Response:', response)
+      console.log('Response success:', response.success)
+      console.log('Response data:', response.data)
+
+      if (response.success) {
+        const data = response.data
+        console.log('Setting research with:', {
+          linkedin_bio: data.linkedin_bio,
+          recent_posts: data.recent_posts,
+          job_change: data.job_change,
+        })
+        setResearch({
+          linkedin_bio: data.linkedin_bio || '',
+          recent_posts: data.recent_posts || '',
+          job_change: data.job_change || '',
+          recent_funding: data.recent_funding || '',
+          mutual_connections: data.mutual_connections || '',
+          company_news: data.company_news || '',
+        })
+
+        // Save immediately
+        await saveResearchMut.mutateAsync({
+          linkedin_bio: data.linkedin_bio || '',
+          recent_posts: data.recent_posts || '',
+          job_change: data.job_change || '',
+          recent_funding: data.recent_funding || '',
+          mutual_connections: data.mutual_connections || '',
+          company_news: data.company_news || '',
+        })
+
+        setShowInputs(true) // Show fields so user can see what was fetched
+        alert(`✅ LinkedIn data fetched successfully!\n\nFound:\n- Bio: ${data.linkedin_bio ? 'Yes' : 'No'}\n- Recent posts: ${data.recent_posts ? 'Yes' : 'No'}\n- Job change: ${data.job_change ? 'Yes' : 'No'}`)
+      }
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.message || 'Failed to fetch LinkedIn data'
+      setFetchError(errorMsg)
+      alert(`❌ Failed to fetch LinkedIn data:\n\n${errorMsg}`)
+    } finally {
+      setIsFetching(false)
+    }
+  }
 
   const generate = async () => {
     const hasData = Object.values(research).some(v => v.trim().length > 0)
@@ -117,6 +176,40 @@ export function HookGenerator({ prospect, onHookSelected }: Props) {
 
   return (
     <div className="space-y-4 text-sm">
+      {/* LinkedIn Auto-Fetch */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Linkedin className="w-4 h-4 text-blue-600" />
+          <p className="text-xs font-medium text-blue-900">Auto-Fetch from LinkedIn</p>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            className="input text-xs flex-1"
+            placeholder={prospect.linkedin_url || "Paste LinkedIn profile URL..."}
+            value={linkedinUrl}
+            onChange={e => setLinkedinUrl(e.target.value)}
+          />
+          <button
+            onClick={fetchFromLinkedIn}
+            disabled={isFetching || (!linkedinUrl && !prospect.linkedin_url)}
+            className="btn-primary text-xs whitespace-nowrap"
+          >
+            {isFetching ? (
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Fetching...</>
+            ) : (
+              <><ExternalLink className="w-3.5 h-3.5" /> Fetch Data</>
+            )}
+          </button>
+        </div>
+        {fetchError && (
+          <p className="text-xs text-red-600 mt-1.5">⚠️ {fetchError}</p>
+        )}
+        <p className="text-xs text-blue-700 mt-1.5">
+          ⚡ One-click auto-populate bio, posts, and job changes (30-60s)
+        </p>
+      </div>
+
       {/* Research inputs */}
       <div>
         <button

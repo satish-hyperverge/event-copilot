@@ -1,0 +1,306 @@
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { captureApi, type LeadCapture, type Priority } from '@/lib/api'
+import { useUIStore } from '@/store/uiStore'
+import {
+  RefreshCw, Search, Table2, Mail, Phone, Linkedin, CalendarDays, Image as ImageIcon,
+  X, User, Building2, FileText,
+} from 'lucide-react'
+
+const PRIORITY_CLASS: Record<Priority, string> = {
+  P0: 'bg-red-100 text-red-700',
+  P1: 'bg-amber-100 text-amber-700',
+  P2: 'bg-blue-100 text-blue-700',
+  Irrelevant: 'bg-gray-100 text-gray-500',
+}
+
+function formatDate(value?: string) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function DetailField({ label, value }: { label: string; value?: string | number | null }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase text-gray-400">{label}</dt>
+      <dd className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-800">
+        {value === null || value === undefined || value === '' ? '-' : value}
+      </dd>
+    </div>
+  )
+}
+
+function CaptureDetailsModal({
+  capture,
+  onClose,
+}: {
+  capture: LeadCapture
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-6">
+      <div className="w-full max-h-[92vh] overflow-hidden rounded-t-xl bg-white shadow-xl sm:max-w-3xl sm:rounded-xl">
+        <div className="flex items-start gap-4 border-b border-gray-200 px-5 py-4">
+          <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center text-brand-700 shrink-0">
+            <User className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900 break-words">{capture.name}</h2>
+              <span className={`badge ${PRIORITY_CLASS[capture.priority] || PRIORITY_CLASS.P2}`}>
+                {capture.priority}
+              </span>
+            </div>
+            <p className="text-sm text-gray-500 break-words">{capture.company || 'No company'}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600"
+            aria-label="Close lead details"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="max-h-[calc(92vh-82px)] overflow-y-auto px-5 py-5">
+          <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+            <section>
+              <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-900">
+                <Building2 className="w-4 h-4 text-gray-400" />
+                Lead
+              </div>
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <DetailField label="Name" value={capture.name} />
+                <DetailField label="Company" value={capture.company} />
+                <DetailField label="Title" value={capture.title} />
+                <DetailField label="Segment" value={capture.segment} />
+                <DetailField label="Priority" value={capture.priority} />
+                <DetailField label="Captured by" value={capture.captured_by} />
+              </dl>
+            </section>
+
+            <section>
+              <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-900">
+                <Mail className="w-4 h-4 text-gray-400" />
+                Contact
+              </div>
+              <dl className="grid gap-4">
+                <DetailField label="Email" value={capture.email} />
+                <DetailField label="Phone" value={capture.phone} />
+                <DetailField label="LinkedIn" value={capture.linkedin} />
+              </dl>
+            </section>
+          </div>
+
+          <section className="mt-6">
+            <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-900">
+              <FileText className="w-4 h-4 text-gray-400" />
+              Notes and next steps
+            </div>
+            <dl className="grid gap-4">
+              <DetailField label="Notes" value={capture.notes} />
+              <DetailField label="Next steps" value={capture.next_step} />
+              <DetailField label="Follow-up date" value={capture.follow_up_date} />
+              <DetailField label="Commitment made" value={capture.commitment_made} />
+            </dl>
+          </section>
+
+          <section className="mt-6">
+            <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-900">
+              <ImageIcon className="w-4 h-4 text-gray-400" />
+              Capture
+            </div>
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <DetailField label="Capture method" value={capture.capture_method || 'manual'} />
+              <DetailField label="Image count" value={capture.image_count ?? 0} />
+              <DetailField label="Captured at" value={formatDate(capture.captured_at)} />
+              <DetailField label="Synced at" value={formatDate(capture.synced_at)} />
+              <DetailField label="Offline ID" value={capture.offline_id} />
+              <DetailField label="Capture ID" value={capture.id} />
+            </dl>
+          </section>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CaptureRow({
+  capture,
+  onOpen,
+}: {
+  capture: LeadCapture
+  onOpen: (capture: LeadCapture) => void
+}) {
+  return (
+    <tr
+      onClick={() => onOpen(capture)}
+      className="cursor-pointer border-b border-gray-100 hover:bg-gray-50"
+      tabIndex={0}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen(capture)
+        }
+      }}
+    >
+      <td className="px-4 py-3 align-top">
+        <div className="font-medium text-gray-900">{capture.name}</div>
+        <div className="text-xs text-gray-500">{capture.company || '-'}</div>
+      </td>
+      <td className="px-4 py-3 align-top text-sm text-gray-700">{capture.title || '-'}</td>
+      <td className="px-4 py-3 align-top">
+        <div className="space-y-1 text-xs text-gray-600">
+          {capture.email && (
+            <div className="flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5 text-gray-400" />
+              <span className="truncate max-w-[190px]">{capture.email}</span>
+            </div>
+          )}
+          {capture.phone && (
+            <div className="flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-gray-400" />
+              <span>{capture.phone}</span>
+            </div>
+          )}
+          {capture.linkedin && (
+            <div className="flex items-center gap-1.5">
+              <Linkedin className="w-3.5 h-3.5 text-gray-400" />
+              <span className="truncate max-w-[190px]">{capture.linkedin}</span>
+            </div>
+          )}
+          {!capture.email && !capture.phone && !capture.linkedin && '-'}
+        </div>
+      </td>
+      <td className="px-4 py-3 align-top">
+        <span className={`badge ${PRIORITY_CLASS[capture.priority] || PRIORITY_CLASS.P2}`}>
+          {capture.priority}
+        </span>
+      </td>
+      <td className="px-4 py-3 align-top text-sm text-gray-700 max-w-xs">
+        <p className="max-h-10 overflow-hidden">{capture.notes || '-'}</p>
+        {capture.next_step && (
+          <p className="mt-1 text-xs font-medium text-gray-500">Next: {capture.next_step}</p>
+        )}
+      </td>
+      <td className="px-4 py-3 align-top text-sm text-gray-700">
+        <div className="flex items-center gap-1.5">
+          <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+          {capture.follow_up_date || '-'}
+        </div>
+      </td>
+      <td className="px-4 py-3 align-top text-sm text-gray-700">
+        <div>{capture.capture_method || 'manual'}</div>
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+          <ImageIcon className="w-3.5 h-3.5" />
+          {capture.image_count ?? 0}
+        </div>
+      </td>
+      <td className="px-4 py-3 align-top text-xs text-gray-500">{formatDate(capture.captured_at)}</td>
+    </tr>
+  )
+}
+
+export default function CaptureList() {
+  const { activeEventId } = useUIStore()
+  const [search, setSearch] = useState('')
+  const [selectedCapture, setSelectedCapture] = useState<LeadCapture | null>(null)
+
+  const params = activeEventId ? { event_id: activeEventId, limit: 200 } : { limit: 200 }
+  const { data: captures = [], isLoading, refetch, isFetching } = useQuery({
+    queryKey: ['captures', params],
+    queryFn: () => captureApi.list(params),
+  })
+
+  const filteredCaptures = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return captures
+    return captures.filter(c =>
+      [c.name, c.company, c.title, c.email, c.phone, c.linkedin, c.notes, c.next_step]
+        .some(value => value?.toLowerCase().includes(q))
+    )
+  }, [captures, search])
+
+  const counts = useMemo(() => ({
+    total: captures.length,
+    P0: captures.filter(c => c.priority === 'P0').length,
+    withImages: captures.filter(c => (c.image_count ?? 0) > 0).length,
+  }), [captures])
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Saved Leads</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {counts.total} captures, {counts.P0} hot, {counts.withImages} with images
+          </p>
+        </div>
+        <button onClick={() => refetch()} className="btn-secondary md:self-start">
+          <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            className="input pl-9"
+            placeholder="Search saved leads..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="card overflow-hidden">
+        {isLoading ? (
+          <div className="p-10 text-center text-sm text-gray-500">Loading saved leads...</div>
+        ) : filteredCaptures.length === 0 ? (
+          <div className="p-10 text-center">
+            <Table2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-700">No saved leads found</p>
+            <p className="text-xs text-gray-500 mt-1">Captures saved from the form will appear here.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1080px] text-left">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Name</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Title</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Contact</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Priority</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Notes</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Follow-up</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Method</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Captured</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {filteredCaptures.map(capture => (
+                  <CaptureRow key={capture.id} capture={capture} onOpen={setSelectedCapture} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {selectedCapture && (
+        <CaptureDetailsModal
+          capture={selectedCapture}
+          onClose={() => setSelectedCapture(null)}
+        />
+      )}
+    </div>
+  )
+}

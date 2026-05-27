@@ -16,7 +16,10 @@ export interface OfflineCapture {
   notes?: string
   product_interest?: string
   next_step?: string
+  follow_up_date?: string
   commitment_made?: string
+  capture_method?: string
+  image_count?: number
   captured_at: string
   synced: boolean
   prospect_id?: number

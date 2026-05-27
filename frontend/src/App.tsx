@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import {
-  Users, Zap, Mic, Bell, BarChart2, Calendar, ChevronRight, Menu, X
+  Users, Zap, Mic, Bell, BarChart2, Calendar, ChevronRight, Menu, X, Table2
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { SyncStatus } from '@/components/shared/SyncStatus'
@@ -14,6 +14,7 @@ import Dashboard from '@/pages/Dashboard'
 import AttendeeList from '@/pages/AttendeeList'
 import AttendeeProfile from '@/pages/AttendeeProfile'
 import LeadCapture from '@/pages/LeadCapture'
+import CaptureList from '@/pages/CaptureList'
 import OutreachHub from '@/pages/OutreachHub'
 import FollowUpDashboard from '@/pages/FollowUpDashboard'
 import Schedule from '@/pages/Schedule'
@@ -23,6 +24,7 @@ const NAV = [
   { to: '/attendees', icon: Users, label: 'Attendees' },
   { to: '/outreach', icon: Zap, label: 'Outreach' },
   { to: '/capture', icon: Mic, label: 'Capture' },
+  { to: '/captures', icon: Table2, label: 'Saved Leads' },
   { to: '/followups', icon: Bell, label: 'Follow-ups' },
   { to: '/schedule', icon: Calendar, label: 'Schedule' },
 ]
@@ -142,6 +144,7 @@ export default function App() {
               <Route path="/attendees" element={<AttendeeList />} />
               <Route path="/attendees/:id" element={<AttendeeProfile />} />
               <Route path="/capture" element={<LeadCapture />} />
+              <Route path="/captures" element={<CaptureList />} />
               <Route path="/outreach" element={<OutreachHub />} />
               <Route path="/followups" element={<FollowUpDashboard />} />
               <Route path="/schedule" element={<Schedule />} />

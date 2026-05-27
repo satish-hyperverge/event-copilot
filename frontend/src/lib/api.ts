@@ -78,7 +78,10 @@ export interface LeadCapture {
   notes?: string
   product_interest?: string
   next_step?: string
+  follow_up_date?: string
   commitment_made?: string
+  capture_method?: string
+  image_count: number
   offline_id?: string
   captured_at: string
   synced_at?: string

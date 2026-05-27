@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field
 from .prospect import Priority, Segment
@@ -22,7 +22,10 @@ class LeadCaptureBase(SQLModel):
     notes: Optional[str] = None
     product_interest: Optional[str] = None
     next_step: Optional[str] = None
+    follow_up_date: Optional[date] = None
     commitment_made: Optional[str] = None
+    capture_method: Optional[str] = Field(default=None)
+    image_count: int = Field(default=0)
     # Offline sync
     offline_id: Optional[str] = Field(default=None, index=True)  # UUID from client
 

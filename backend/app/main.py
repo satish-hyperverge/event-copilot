@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .database import create_db_and_tables
-from .routers import events, prospects, outreach, capture, followup, ai, analytics, schedule
+from .routers import events, prospects, outreach, capture, followup, ai, analytics, schedule, linkedin
 
 settings = get_settings()
 
@@ -32,7 +32,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    create_db_and_tables()
+    if settings.data_backend != "supabase":
+        create_db_and_tables()
 
 
 @app.get("/health")
@@ -48,3 +49,4 @@ app.include_router(followup.router)
 app.include_router(ai.router)
 app.include_router(analytics.router)
 app.include_router(schedule.router)
+app.include_router(linkedin.router)

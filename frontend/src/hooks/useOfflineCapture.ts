@@ -21,12 +21,8 @@ export function useOfflineCapture() {
 
       if (navigator.onLine) {
         // Online: go directly to server, no need to queue
-        try {
-          await captureApi.create({ ...capture })
-          return { capture, synced: true }
-        } catch {
-          // Fall through to offline queue
-        }
+        const savedCapture = await captureApi.create({ ...capture })
+        return { capture: savedCapture, synced: true }
       }
 
       // Offline: save to IndexedDB

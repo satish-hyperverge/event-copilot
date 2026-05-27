@@ -4,7 +4,12 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     openai_api_key: str = ""
+    data_backend: str = "sql"
     database_url: str = "sqlite:///./conference_leads.db"
+    database_schema: str = "public"
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
     # Comma-separated list of allowed frontend origins
     frontend_url: str = "http://localhost:5173,http://localhost:3000"
     # Gmail SMTP — for sending outreach emails

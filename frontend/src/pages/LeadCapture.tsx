@@ -56,6 +56,7 @@ export default function LeadCapture() {
   const [showDropdown, setShowDropdown] = useState(false)
   const [saved, setSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [micError, setMicError] = useState<string | null>(null)
@@ -163,7 +164,9 @@ export default function LeadCapture() {
       if (isCard) {
         try {
           const result = await aiApi.scanCard(file)
-          if (result.name && !selectedProspect) setManualName(result.name)
+          if (result.name && !selectedProspect) {
+            setManualName(prev => prev.trim() ? prev : result.name)
+          }
 
           const fields: Record<string, string> = {}
           if (result.title)    fields['Title']    = result.title
@@ -202,8 +205,15 @@ export default function LeadCapture() {
   const handleSave = async () => {
     if (!contactName.trim()) return
     setIsSaving(true)
+    setSaveError(null)
     try {
       const commitment = nextStepDate ? `by ${nextStepDate}` : ''
+      const captureMethod = images.some(i => i.imageType === 'business_card')
+        ? 'card_scan'
+        : savedAudioUrl
+        ? 'voice_note'
+        : 'manual'
+
       const result = await saveCapture({
         name: contactName,
         company: scannedFields?.Company || undefined,
@@ -215,7 +225,10 @@ export default function LeadCapture() {
         segment: selectedProspect?.segment || 'cold',
         notes: notes || undefined,
         next_step: nextStep || undefined,
+        follow_up_date: nextStepDate || undefined,
         commitment_made: commitment || undefined,
+        capture_method: captureMethod,
+        image_count: images.length,
         captured_by: currentUser,
         prospect_id: selectedProspect?.id,
       })
@@ -240,12 +253,6 @@ export default function LeadCapture() {
       }
 
       // Sync to Google Sheets (if webhook configured)
-      const captureMethod = images.some(i => i.imageType === 'business_card')
-        ? 'card_scan'
-        : savedAudioUrl
-        ? 'voice_note'
-        : 'manual'
-
       const sheetsPayload: SheetsPayload = {
         name: contactName,
         company:  scannedFields?.Company || '',
@@ -266,6 +273,9 @@ export default function LeadCapture() {
       setSheetStatus(status)
 
       setSaved(true)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not save lead. Check backend logs.'
+      setSaveError(message)
     } finally {
       setIsSaving(false)
     }
@@ -286,6 +296,7 @@ export default function LeadCapture() {
     setSavedAudioUrl(null)
     setMicError(null)
     setSaved(false)
+    setSaveError(null)
     setSheetStatus('idle')
     savedCaptureId.current = null
   }
@@ -646,6 +657,16 @@ export default function LeadCapture() {
           </div>
         )}
 
+        {saveError && (
+          <div className="flex items-start gap-2 px-3 py-2 mb-3 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <span className="text-sm text-red-800">{saveError}</span>
+            <button onClick={() => setSaveError(null)} className="ml-auto text-red-400 hover:text-red-600 shrink-0">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Image thumbnails */}
         {images.length > 0 && (
           <div className="grid grid-cols-3 gap-2 mb-3">
@@ -768,7 +789,7 @@ export default function LeadCapture() {
       </section>
 
       {/* ── Save button (sticky on mobile) ── */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-sm border-t border-gray-200 lg:static lg:border-0 lg:bg-transparent lg:mt-2 lg:backdrop-blur-none">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-sm border-t border-gray-200 lg:static lg:border-0 lg:bg-transparent lg:mt-2 lg:p-0 lg:backdrop-blur-none">
         <div className="max-w-lg mx-auto">
           <button
             onClick={handleSave}
