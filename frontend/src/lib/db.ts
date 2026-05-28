@@ -25,13 +25,28 @@ export interface OfflineCapture {
   prospect_id?: number
 }
 
+export interface OfflineCaptureImage {
+  id?: number
+  offline_id: string
+  file: Blob
+  filename: string
+  image_type: string
+  synced: boolean
+  created_at: string
+}
+
 class ConferenceLeadDB extends Dexie {
   captures!: Table<OfflineCapture>
+  captureImages!: Table<OfflineCaptureImage, number>
 
   constructor() {
     super('ConferenceLeadPlatform')
     this.version(1).stores({
       captures: 'offline_id, event_id, synced, captured_at',
+    })
+    this.version(2).stores({
+      captures: 'offline_id, event_id, synced, captured_at',
+      captureImages: '++id, offline_id, synced, created_at',
     })
   }
 }

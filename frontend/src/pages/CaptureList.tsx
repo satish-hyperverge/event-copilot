@@ -28,8 +28,20 @@ function formatDate(value?: string) {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
     timeZone: 'Asia/Kolkata',
-    timeZoneName: 'short',
+  }).format(date).replace(/\b(am|pm)\b/g, match => match.toUpperCase())
+}
+
+function formatDueDate(value?: string) {
+  if (!value) return '-'
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   }).format(date)
 }
 
@@ -41,6 +53,49 @@ function DetailField({ label, value }: { label: string; value?: string | number 
         {value === null || value === undefined || value === '' ? '-' : value}
       </dd>
     </div>
+  )
+}
+
+function ContactField({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Mail
+  label: string
+  value?: string | null
+}) {
+  if (!value) return null
+
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+      <div className="min-w-0">
+        <dt className="text-xs font-semibold uppercase text-gray-400">{label}</dt>
+        <dd className="mt-0.5 break-words text-sm text-gray-900">{value}</dd>
+      </div>
+    </div>
+  )
+}
+
+function CaptureImagePreview({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false)
+
+  if (failed) {
+    return (
+      <div className="flex h-48 w-full items-center justify-center bg-gray-50 px-4 text-center text-sm text-gray-500">
+        Image unavailable
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-48 w-full object-cover transition-transform group-hover:scale-[1.02]"
+      onError={() => setFailed(true)}
+    />
   )
 }
 
@@ -58,8 +113,14 @@ function CaptureDetailsModal({
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-6">
-      <div className="w-full max-h-[92vh] overflow-hidden rounded-t-xl bg-white shadow-xl sm:max-w-3xl sm:rounded-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-h-[92vh] overflow-hidden rounded-t-xl bg-white shadow-xl sm:max-w-3xl sm:rounded-xl"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="flex items-start gap-4 border-b border-gray-200 px-5 py-4">
           <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center text-brand-700 shrink-0">
             <User className="w-5 h-5" />
@@ -87,16 +148,14 @@ function CaptureDetailsModal({
             <section>
               <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-900">
                 <Building2 className="w-4 h-4 text-gray-400" />
-                Lead
+                Lead profile
               </div>
               <dl className="grid gap-4 sm:grid-cols-2">
                 <DetailField label="Name" value={capture.name} />
                 <DetailField label="Company Name" value={capture.company} />
                 <DetailField label="Type of company" value={capture.product_interest} />
                 <DetailField label="Designation" value={capture.title} />
-                <DetailField label="Segment" value={capture.segment} />
                 <DetailField label="Priority" value={capture.priority} />
-                <DetailField label="Captured by" value={capture.captured_by} />
               </dl>
             </section>
 
@@ -105,10 +164,15 @@ function CaptureDetailsModal({
                 <Mail className="w-4 h-4 text-gray-400" />
                 Contact
               </div>
-              <dl className="grid gap-4">
-                <DetailField label="Email" value={capture.email} />
-                <DetailField label="Phone" value={capture.phone} />
-                <DetailField label="LinkedIn" value={capture.linkedin} />
+              <dl className="grid gap-2">
+                <ContactField icon={Mail} label="Email" value={capture.email} />
+                <ContactField icon={Phone} label="Phone" value={capture.phone} />
+                <ContactField icon={Linkedin} label="LinkedIn" value={capture.linkedin} />
+                {!capture.email && !capture.phone && !capture.linkedin && (
+                  <div className="rounded-lg border border-dashed border-gray-200 px-3 py-4 text-sm text-gray-500">
+                    No contact details saved
+                  </div>
+                )}
               </dl>
             </section>
           </div>
@@ -121,8 +185,7 @@ function CaptureDetailsModal({
             <dl className="grid gap-4">
               <DetailField label="Notes" value={capture.notes} />
               <DetailField label="Next steps" value={capture.next_step} />
-              <DetailField label="Follow-up date" value={capture.follow_up_date} />
-              <DetailField label="Commitment made" value={capture.commitment_made} />
+              <DetailField label="Due date" value={formatDueDate(capture.follow_up_date)} />
             </dl>
           </section>
 
@@ -143,11 +206,7 @@ function CaptureDetailsModal({
                     rel="noreferrer"
                     className="group overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
                   >
-                    <img
-                      src={captureApi.imageUrl(image.filename)}
-                      alt={image.image_type}
-                      className="h-48 w-full object-cover transition-transform group-hover:scale-[1.02]"
-                    />
+                    <CaptureImagePreview src={captureApi.imageUrl(image.filename)} alt={image.image_type} />
                     <div className="flex items-center justify-between px-3 py-2 text-xs text-gray-600">
                       <span>{image.image_type}</span>
                       <span>{formatDate(image.created_at)}</span>
@@ -169,9 +228,6 @@ function CaptureDetailsModal({
               <DetailField label="Capture method" value={capture.capture_method || 'manual'} />
               <DetailField label="Image count" value={capture.image_count ?? 0} />
               <DetailField label="Date of lead capture" value={formatDate(capture.captured_at)} />
-              <DetailField label="Synced at" value={formatDate(capture.synced_at)} />
-              <DetailField label="Offline ID" value={capture.offline_id} />
-              <DetailField label="Capture ID" value={capture.id} />
             </dl>
           </section>
         </div>
@@ -199,15 +255,15 @@ function CaptureRow({
         }
       }}
     >
-      <td className="px-4 py-3 align-top">
+      <td className="w-[240px] px-4 py-3 align-top">
         <div className="font-medium text-gray-900">{capture.name}</div>
       </td>
-      <td className="px-4 py-3 align-top text-sm text-gray-700">{capture.company || '-'}</td>
-      <td className="px-4 py-3 align-top text-sm text-gray-700">{capture.product_interest || '-'}</td>
-      <td className="px-4 py-3 align-top text-sm text-gray-700">
+      <td className="w-[240px] px-4 py-3 align-top text-sm text-gray-700">{capture.company || '-'}</td>
+      <td className="w-[210px] px-4 py-3 align-top text-sm text-gray-700">{capture.product_interest || '-'}</td>
+      <td className="w-[220px] px-4 py-3 align-top text-sm text-gray-700">
         <div>{capture.title || '-'}</div>
       </td>
-      <td className="px-4 py-3 align-top">
+      <td className="w-[290px] px-4 py-3 align-top">
         <div className="space-y-1 text-xs text-gray-600">
           {capture.email && (
             <div className="flex items-center gap-1.5">
@@ -230,24 +286,24 @@ function CaptureRow({
           {!capture.email && !capture.phone && !capture.linkedin && '-'}
         </div>
       </td>
-      <td className="px-4 py-3 align-top">
+      <td className="w-[110px] px-4 py-3 align-top">
         <span className={`badge ${PRIORITY_CLASS[capture.priority] || PRIORITY_CLASS.P2}`}>
           {capture.priority}
         </span>
       </td>
-      <td className="px-4 py-3 align-top text-sm text-gray-700 max-w-xs">
-        <p className="max-h-10 overflow-hidden">{capture.notes || '-'}</p>
+      <td className="w-[260px] px-4 py-3 align-top text-sm text-gray-700">
+        <p className="max-h-16 overflow-hidden whitespace-pre-wrap">{capture.notes || '-'}</p>
       </td>
-      <td className="px-4 py-3 align-top text-sm text-gray-700 max-w-xs">
-        <p className="max-h-10 overflow-hidden whitespace-pre-wrap">{capture.next_step || '-'}</p>
+      <td className="w-[260px] px-4 py-3 align-top text-sm text-gray-700">
+        <p className="max-h-16 overflow-hidden whitespace-pre-wrap">{capture.next_step || '-'}</p>
       </td>
-      <td className="px-4 py-3 align-top text-sm text-gray-700">
+      <td className="w-[150px] px-4 py-3 align-top text-sm text-gray-700">
         <div className="flex items-center gap-1.5">
           <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
-          {capture.follow_up_date || '-'}
+          {formatDueDate(capture.follow_up_date)}
         </div>
       </td>
-      <td className="px-4 py-3 align-top text-xs text-gray-500">{formatDate(capture.captured_at)}</td>
+      <td className="w-[170px] px-4 py-3 align-top text-sm text-gray-700">{formatDate(capture.captured_at)}</td>
     </tr>
   )
 }
@@ -279,7 +335,7 @@ export default function CaptureList() {
   }), [captures])
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-[1800px] mx-auto">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Saved Leads</h1>
@@ -316,19 +372,19 @@ export default function CaptureList() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1280px] text-left">
+            <table className="w-full min-w-[2150px] table-fixed text-left">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Name</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Company name</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Type of company</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Designation</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Contact</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Priority</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Notes</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Next steps</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Due</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Date of lead capture</th>
+                  <th className="w-[240px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Name</th>
+                  <th className="w-[240px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Company name</th>
+                  <th className="w-[210px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Type of company</th>
+                  <th className="w-[220px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Designation</th>
+                  <th className="w-[290px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Contact</th>
+                  <th className="w-[110px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Priority</th>
+                  <th className="w-[260px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Notes</th>
+                  <th className="w-[260px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Next steps</th>
+                  <th className="w-[150px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Due date</th>
+                  <th className="w-[170px] px-4 py-3 text-xs font-semibold uppercase text-gray-500">Date of capture</th>
                 </tr>
               </thead>
               <tbody className="bg-white">

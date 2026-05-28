@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
+    supabase_storage_bucket: str = "capture-images"
     # Comma-separated list of allowed frontend origins
     frontend_url: str = "http://localhost:5173,http://localhost:3000"
     # Gmail SMTP — for sending outreach emails

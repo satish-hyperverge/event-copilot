@@ -167,10 +167,6 @@ export default function LeadCapture() {
           const fields: Record<string, string> = {}
           if (result.title)    fields['Title']    = result.title
           if (result.company)  fields['Company']  = result.company
-          if (result.email)    fields['Email']    = result.email
-          if (result.phone)    fields['Phone']    = result.phone
-          if (result.linkedin) fields['LinkedIn'] = result.linkedin
-          if (result.website)  fields['Website']  = result.website
 
           const extractedFields = Object.keys(fields).length > 0 ? fields : null
           setImages(prev => prev.map(img =>
@@ -214,9 +210,9 @@ export default function LeadCapture() {
         name: contactName,
         company: companyName.trim() || scannedFields?.Company || undefined,
         title: designation.trim() || scannedFields?.Title || undefined,
-        phone: scannedFields?.Phone || undefined,
-        email: scannedFields?.Email || undefined,
-        linkedin: scannedFields?.LinkedIn || undefined,
+        phone: undefined,
+        email: undefined,
+        linkedin: undefined,
         priority: priority || 'P2',
         segment: 'cold',
         notes: notes || undefined,
@@ -227,7 +223,10 @@ export default function LeadCapture() {
         capture_method: captureMethod,
         image_count: images.length,
         captured_by: currentUser,
-      })
+      }, images.map(img => ({
+        file: img.file,
+        imageType: img.imageType === 'classifying' ? 'photo' : img.imageType,
+      })))
 
       // Upload images if online and capture was saved with an ID
       if (result.synced && images.length > 0) {
@@ -253,9 +252,9 @@ export default function LeadCapture() {
         name: contactName,
         company:  companyName.trim() || scannedFields?.Company || '',
         title:    designation.trim() || scannedFields?.Title || '',
-        email:    scannedFields?.Email || '',
-        phone:    scannedFields?.Phone || '',
-        linkedin: scannedFields?.LinkedIn || '',
+        email:    '',
+        phone:    '',
+        linkedin: '',
         priority: priority || 'P2',
         notes:    [notes, companyType.trim() ? `Type of company: ${companyType.trim()}` : ''].filter(Boolean).join('\n'),
         nextSteps:   nextStep || '',
@@ -470,7 +469,9 @@ export default function LeadCapture() {
 
       {/* ── Section 1: Who are you meeting? ── */}
       <section className="mb-6">
-        <p className="text-sm font-semibold text-gray-800 mb-2">Who are you meeting?</p>
+        <p className="text-sm font-semibold text-gray-800 mb-2">
+          Who are you meeting? <span className="text-red-600" aria-hidden="true">*</span>
+        </p>
 
         <div className="relative mb-4">
           <input
@@ -478,6 +479,8 @@ export default function LeadCapture() {
             placeholder="Type a name..."
             value={manualName}
             onChange={e => setManualName(e.target.value)}
+            required
+            aria-required="true"
           />
           {manualName && (
             <button
@@ -697,12 +700,16 @@ export default function LeadCapture() {
 
       {/* ── Section 3: Priority ── */}
       <section className="mb-6">
-        <p className="text-sm font-semibold text-gray-800 mb-2">How important is this?</p>
-        <div className="grid grid-cols-4 gap-2">
+        <p className="text-sm font-semibold text-gray-800 mb-2">
+          How important is this? <span className="text-red-600" aria-hidden="true">*</span>
+        </p>
+        <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-required="true" aria-label="Lead priority">
           {PRIORITIES.map(p => (
             <button
               key={p.value}
               onClick={() => setPriority(p.value)}
+              role="radio"
+              aria-checked={priority === p.value}
               className={`py-2.5 px-2 rounded-lg border text-sm font-semibold text-center transition-all ${
                 priority === p.value ? p.activeColor : p.color
               }`}
@@ -744,8 +751,8 @@ export default function LeadCapture() {
               </button>
 
               {datePickerOpen && (
-                <div className="absolute left-0 right-0 z-30 mt-2 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
-                  <div className="mb-3 flex items-center justify-between">
+                <div className="absolute bottom-full left-0 z-30 mb-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
+                  <div className="mb-2 flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
@@ -767,7 +774,7 @@ export default function LeadCapture() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-gray-400">
+                  <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-gray-400">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                       <div key={day} className="py-1">{day}</div>
                     ))}
@@ -777,6 +784,7 @@ export default function LeadCapture() {
                     {calendarDays.map(date => {
                       const value = toDateValue(date)
                       const isSelected = value === nextStepDate
+                      const isToday = value === todayValue
                       const isPast = value < todayValue
                       const isCurrentMonth = date.getMonth() === calendarMonth.getMonth()
                       return (
@@ -788,11 +796,13 @@ export default function LeadCapture() {
                             setNextStepDate(value)
                             setDatePickerOpen(false)
                           }}
-                          className={`h-9 rounded-lg text-sm font-medium transition-colors ${
+                          className={`h-8 rounded-lg text-sm font-medium transition-colors ${
                             isSelected
                               ? 'bg-brand-600 text-white'
                               : isPast
                               ? 'cursor-not-allowed text-gray-300'
+                              : isToday
+                              ? 'border border-brand-500 bg-brand-50 text-brand-700'
                               : isCurrentMonth
                               ? 'text-gray-800 hover:bg-brand-50 hover:text-brand-700'
                               : 'text-gray-400 hover:bg-gray-50'

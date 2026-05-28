@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlmodel import Session, select
 
 from ..config import get_settings
@@ -41,6 +41,7 @@ def sync_captures(
     """
     synced = []
     skipped = []
+    capture_ids = {}
 
     if _using_supabase():
         for capture_data in data.captures:
@@ -51,12 +52,19 @@ def sync_captures(
                 )
                 if existing:
                     skipped.append(capture_data.offline_id)
+                    capture_ids[capture_data.offline_id] = existing[0].get("id")
                     continue
 
-            supabase.insert("leadcapture", _capture_payload(capture_data))
+            capture = supabase.insert("leadcapture", _capture_payload(capture_data))
             synced.append(capture_data.offline_id or "no-id")
+            if capture_data.offline_id:
+                capture_ids[capture_data.offline_id] = capture.get("id")
 
-        return {"synced": len(synced), "skipped_duplicate": len(skipped)}
+        return {
+            "synced": len(synced),
+            "skipped_duplicate": len(skipped),
+            "capture_ids": capture_ids,
+        }
 
     for capture_data in data.captures:
         # Dedup check via offline_id
@@ -66,6 +74,7 @@ def sync_captures(
             ).first()
             if existing:
                 skipped.append(capture_data.offline_id)
+                capture_ids[capture_data.offline_id] = existing.id
                 continue
 
         capture = LeadCapture(
@@ -74,10 +83,17 @@ def sync_captures(
             captured_at=capture_data.captured_at or datetime.utcnow(),
         )
         session.add(capture)
+        session.flush()
         synced.append(capture_data.offline_id or "no-id")
+        if capture_data.offline_id:
+            capture_ids[capture_data.offline_id] = capture.id
 
     session.commit()
-    return {"synced": len(synced), "skipped_duplicate": len(skipped)}
+    return {
+        "synced": len(synced),
+        "skipped_duplicate": len(skipped),
+        "capture_ids": capture_ids,
+    }
 
 
 @router.post("", response_model=LeadCaptureRead)
@@ -161,11 +177,21 @@ async def upload_capture_image(
 
     ext = os.path.splitext(file.filename or "image.jpg")[1] or ".jpg"
     filename = f"{capture_id}_{uuid.uuid4().hex[:8]}{ext}"
-    file_path = os.path.join(UPLOAD_DIR, filename)
-
     content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
+
+    if _using_supabase():
+        media_type = file.content_type or "image/jpeg"
+        storage_path = f"captures/{capture_id}/{filename}"
+        file_path = supabase.upload_file(
+            settings.supabase_storage_bucket,
+            storage_path,
+            content,
+            media_type,
+        )
+    else:
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        with open(file_path, "wb") as f:
+            f.write(content)
 
     image_payload = {
         "capture_id": capture_id,
@@ -198,6 +224,19 @@ def list_capture_images(capture_id: int, session: Session = Depends(get_session)
 @router.get("/images/file/{filename}")
 def serve_image(filename: str):
     path = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(path)
+    if os.path.exists(path):
+        return FileResponse(path)
+
+    if _using_supabase():
+        rows = supabase.select("captureimage", {"filename": f"eq.{filename}", "limit": "1"})
+        if rows:
+            file_path = rows[0].get("file_path") or ""
+            if file_path.startswith("storage://"):
+                _, storage_ref = file_path.split("storage://", 1)
+                bucket, object_path = storage_ref.split("/", 1)
+                return Response(
+                    content=supabase.download_file(bucket, object_path),
+                    media_type="image/jpeg",
+                )
+
+    raise HTTPException(status_code=404, detail="Image not found")

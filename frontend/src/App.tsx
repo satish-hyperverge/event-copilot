@@ -1,9 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import {
-  Users, Zap, Mic, Bell, BarChart2, Calendar, ChevronRight, Menu, X, Table2
-} from 'lucide-react'
+import { Mic, Menu, X, Table2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { SyncStatus } from '@/components/shared/SyncStatus'
 import { useSync } from '@/hooks/useSync'
 import { useUIStore } from '@/store/uiStore'
 import { eventsApi } from '@/lib/api'
@@ -20,18 +17,13 @@ import FollowUpDashboard from '@/pages/FollowUpDashboard'
 import Schedule from '@/pages/Schedule'
 
 const NAV = [
-  { to: '/dashboard', icon: BarChart2, label: 'Dashboard' },
-  { to: '/attendees', icon: Users, label: 'Attendees' },
-  { to: '/outreach', icon: Zap, label: 'Outreach' },
   { to: '/capture', icon: Mic, label: 'Capture' },
   { to: '/captures', icon: Table2, label: 'Saved Leads' },
-  { to: '/followups', icon: Bell, label: 'Follow-ups' },
-  { to: '/schedule', icon: Calendar, label: 'Schedule' },
 ]
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { activeEventId, setActiveEventId, currentUser } = useUIStore()
+  const { activeEventId, setActiveEventId } = useUIStore()
   useSync()
 
   const { data: events } = useQuery({
@@ -46,8 +38,6 @@ export default function App() {
     }
   }, [events, activeEventId, setActiveEventId])
 
-  const activeEvent = events?.find(e => e.id === activeEventId)
-
   return (
     <BrowserRouter>
       <div className="min-h-screen flex">
@@ -61,29 +51,14 @@ export default function App() {
           `}
         >
           {/* Logo */}
-          <div className="h-16 flex items-center px-4 border-b border-brand-800">
-            <span className="font-bold text-lg tracking-tight">LeadPlatform</span>
+          <div className="h-12 flex items-center px-4 border-b border-brand-800">
+            <span className="text-sm font-semibold tracking-wide text-brand-100">Event Co-pilot</span>
             <button
               className="ml-auto lg:hidden"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="w-5 h-5" />
             </button>
-          </div>
-
-          {/* Event selector */}
-          <div className="px-3 py-3 border-b border-brand-800">
-            <p className="text-xs text-brand-300 font-medium uppercase tracking-wide mb-1">Active Event</p>
-            <select
-              className="w-full bg-brand-800 text-white text-sm rounded-lg px-2 py-1.5 border border-brand-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
-              value={activeEventId || ''}
-              onChange={e => setActiveEventId(Number(e.target.value) || null)}
-            >
-              <option value="">Select event…</option>
-              {events?.map(ev => (
-                <option key={ev.id} value={ev.id}>{ev.name}</option>
-              ))}
-            </select>
           </div>
 
           {/* Nav */}
@@ -107,11 +82,6 @@ export default function App() {
             ))}
           </nav>
 
-          {/* Footer */}
-          <div className="px-4 py-3 border-t border-brand-800">
-            <SyncStatus />
-            <p className="text-xs text-brand-400 mt-1">Signed in as {currentUser}</p>
-          </div>
         </aside>
 
         {/* Overlay */}
@@ -130,11 +100,6 @@ export default function App() {
               <Menu className="w-5 h-5 text-gray-600" />
             </button>
             <span className="font-semibold text-gray-800">LeadPlatform</span>
-            {activeEvent && (
-              <span className="ml-auto text-xs text-gray-500 truncate max-w-[140px]">
-                {activeEvent.name}
-              </span>
-            )}
           </header>
 
           <main className="flex-1 overflow-y-auto">

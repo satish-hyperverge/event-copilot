@@ -95,6 +95,12 @@ export interface CaptureImage {
   created_at: string
 }
 
+export interface CaptureSyncResponse {
+  synced: number
+  skipped_duplicate: number
+  capture_ids: Record<string, number>
+}
+
 export interface FollowUp {
   id: number
   prospect_id: number
@@ -263,7 +269,8 @@ export const outreachApi = {
 }
 
 export const captureApi = {
-  sync: (captures: unknown[]) => api.post('/capture/sync', { captures }).then(r => r.data),
+  sync: (captures: unknown[]) =>
+    api.post<CaptureSyncResponse>('/capture/sync', { captures }).then(r => r.data),
   create: (data: unknown) => api.post<LeadCapture>('/capture', data).then(r => r.data),
   list: (params?: Record<string, unknown>) =>
     api.get<LeadCapture[]>('/capture', { params }).then(r => r.data),

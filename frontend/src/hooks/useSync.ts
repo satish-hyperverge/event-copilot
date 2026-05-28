@@ -7,19 +7,50 @@ export function useSync() {
   const { setIsSyncing, setPendingCount, setLastSyncAt } = useOfflineStore()
 
   const updatePendingCount = useCallback(async () => {
-    const count = await db.captures.where('synced').equals(0).count()
-    setPendingCount(count)
+    const [captureCount, imageCount] = await Promise.all([
+      db.captures.where('synced').equals(0).count(),
+      db.captureImages.where('synced').equals(0).count(),
+    ])
+    setPendingCount(captureCount + imageCount)
   }, [setPendingCount])
 
   const sync = useCallback(async () => {
     const pending = await db.captures.where('synced').equals(0).toArray()
-    if (pending.length === 0) return
+    const pendingImages = await db.captureImages.where('synced').equals(0).toArray()
+    if (pending.length === 0 && pendingImages.length === 0) return
 
     setIsSyncing(true)
     try {
-      await captureApi.sync(pending.map(c => ({ ...c, synced: undefined })))
-      const ids = pending.map(c => c.offline_id)
-      await db.captures.where('offline_id').anyOf(ids).modify({ synced: 1 })
+      let captureIds: Record<string, number> = {}
+
+      if (pending.length > 0) {
+        const syncResult = await captureApi.sync(pending.map(c => ({ ...c, synced: undefined })))
+        captureIds = syncResult.capture_ids || {}
+        const ids = pending.map(c => c.offline_id)
+        await db.captures.where('offline_id').anyOf(ids).modify({ synced: 1 })
+      }
+
+      const imagesToSync = await db.captureImages.where('synced').equals(0).toArray()
+      for (const image of imagesToSync) {
+        const captureId = captureIds[image.offline_id]
+        if (!captureId) {
+          const matchingCapture = await db.captures.get(image.offline_id)
+          if (!matchingCapture?.synced) continue
+
+          const lookup = await captureApi.sync([{ ...matchingCapture, synced: undefined }])
+          Object.assign(captureIds, lookup.capture_ids || {})
+        }
+
+        const resolvedCaptureId = captureIds[image.offline_id]
+        if (!resolvedCaptureId || image.id === undefined) continue
+
+        const file = new File([image.file], image.filename, {
+          type: image.file.type || 'image/jpeg',
+        })
+        await captureApi.uploadImage(resolvedCaptureId, file, image.image_type)
+        await db.captureImages.update(image.id, { synced: true })
+      }
+
       setLastSyncAt(new Date().toISOString())
       await updatePendingCount()
     } catch {
