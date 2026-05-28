@@ -21,7 +21,7 @@ export interface OfflineCapture {
   capture_method?: string
   image_count?: number
   captured_at: string
-  synced: boolean
+  synced: 0 | 1
   prospect_id?: number
 }
 
@@ -31,7 +31,7 @@ export interface OfflineCaptureImage {
   file: Blob
   filename: string
   image_type: string
-  synced: boolean
+  synced: 0 | 1
   created_at: string
 }
 

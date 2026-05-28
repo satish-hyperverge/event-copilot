@@ -6,7 +6,7 @@ import { useOfflineStore } from '@/store/offlineStore'
 import {
   Mic, MicOff, Camera, FileText, CheckCircle2, Loader2,
   X, Plus, Calendar, AlertCircle, ImagePlus, ChevronLeft, ChevronRight,
-  WifiOff, Cloud, CloudOff, Table2,
+  WifiOff, Cloud, CloudOff,
 } from 'lucide-react'
 import { syncToSheets, type SheetsPayload } from '@/lib/sheetsSync'
 
@@ -391,40 +391,31 @@ export default function LeadCapture() {
             <span className="font-medium text-gray-700">{contactName}</span>
           </p>
 
-          {!isOnline ? (
-            <div className="mt-3 mx-auto max-w-xs px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex items-center justify-center gap-2">
+          <div className={`mt-3 mx-auto max-w-xs px-3 py-2 rounded-lg border ${
+            !isOnline
+              ? 'bg-amber-50 border-amber-200 text-amber-800'
+              : 'bg-green-50 border-green-200 text-green-700'
+          }`}>
+            <div className="flex items-center justify-center gap-2">
+              {!isOnline ? (
                 <CloudOff className="w-4 h-4 text-amber-600" />
-                <span className="text-sm font-medium text-amber-800">Saved offline</span>
-              </div>
-              <p className="text-xs text-amber-600 mt-0.5">Will sync automatically when you reconnect</p>
-            </div>
-          ) : (
-            <div className="mt-3 flex items-center justify-center gap-1.5 text-sm text-green-600">
-              <Cloud className="w-4 h-4" />
-              Synced to server
-            </div>
-          )}
-
-          {sheetStatus !== 'idle' && (
-            <div className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-              sheetStatus === 'synced'
-                ? 'bg-green-50 text-green-700 border border-green-200'
-                : 'bg-amber-50 text-amber-700 border border-amber-200'
-            }`}>
-              {sheetStatus === 'synced' ? (
-                <><Table2 className="w-3 h-3" /> Synced to Google Sheets</>
               ) : (
-                <><CloudOff className="w-3 h-3" /> Queued for Sheets — will sync on reconnect</>
+                <Cloud className="w-4 h-4 text-green-600" />
               )}
+              <span className="text-sm font-medium">
+                {!isOnline ? 'Saved for later' : 'Saved successfully'}
+              </span>
             </div>
+            {!isOnline && (
+              <p className="text-xs text-amber-600 mt-0.5">It will finish automatically when you're back online.</p>
+            )}
+          </div>
+
+          {sheetStatus === 'queued' && (
+            <p className="mt-3 text-xs text-amber-600">Some updates will finish when you're back online.</p>
           )}
 
-          {images.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2">{images.length} image{images.length > 1 ? 's' : ''} attached</p>
-          )}
-
-          <button onClick={resetForm} className="btn-primary mt-6 px-8">
+          <button onClick={resetForm} className="btn-primary mt-8 mx-auto px-8 min-w-56 justify-center">
             <Plus className="w-4 h-4" />
             Capture Another
           </button>

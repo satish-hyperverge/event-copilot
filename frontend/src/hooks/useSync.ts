@@ -2,16 +2,22 @@ import { useEffect, useCallback } from 'react'
 import { db } from '@/lib/db'
 import { captureApi } from '@/lib/api'
 import { useOfflineStore } from '@/store/offlineStore'
+import type { OfflineCapture } from '@/lib/db'
+
+function toCapturePayload(capture: OfflineCapture) {
+  const { synced: _synced, prospect_id, ...payload } = capture
+  return {
+    ...payload,
+    prospect_id: prospect_id || undefined,
+  }
+}
 
 export function useSync() {
   const { setIsSyncing, setPendingCount, setLastSyncAt } = useOfflineStore()
 
   const updatePendingCount = useCallback(async () => {
-    const [captureCount, imageCount] = await Promise.all([
-      db.captures.where('synced').equals(0).count(),
-      db.captureImages.where('synced').equals(0).count(),
-    ])
-    setPendingCount(captureCount + imageCount)
+    const captureCount = await db.captures.where('synced').equals(0).count()
+    setPendingCount(captureCount)
   }, [setPendingCount])
 
   const sync = useCallback(async () => {
@@ -24,10 +30,8 @@ export function useSync() {
       let captureIds: Record<string, number> = {}
 
       if (pending.length > 0) {
-        const syncResult = await captureApi.sync(pending.map(c => ({ ...c, synced: undefined })))
+        const syncResult = await captureApi.sync(pending.map(toCapturePayload))
         captureIds = syncResult.capture_ids || {}
-        const ids = pending.map(c => c.offline_id)
-        await db.captures.where('offline_id').anyOf(ids).modify({ synced: 1 })
       }
 
       const imagesToSync = await db.captureImages.where('synced').equals(0).toArray()
@@ -37,7 +41,7 @@ export function useSync() {
           const matchingCapture = await db.captures.get(image.offline_id)
           if (!matchingCapture?.synced) continue
 
-          const lookup = await captureApi.sync([{ ...matchingCapture, synced: undefined }])
+          const lookup = await captureApi.sync([toCapturePayload(matchingCapture)])
           Object.assign(captureIds, lookup.capture_ids || {})
         }
 
@@ -48,7 +52,19 @@ export function useSync() {
           type: image.file.type || 'image/jpeg',
         })
         await captureApi.uploadImage(resolvedCaptureId, file, image.image_type)
-        await db.captureImages.update(image.id, { synced: true })
+        await db.captureImages.delete(image.id)
+      }
+
+      const syncedCaptureIds = new Set(Object.keys(captureIds))
+      for (const offlineId of syncedCaptureIds) {
+        const remainingImages = await db.captureImages
+          .where('offline_id')
+          .equals(offlineId)
+          .count()
+
+        if (remainingImages === 0) {
+          await db.captures.delete(offlineId)
+        }
       }
 
       setLastSyncAt(new Date().toISOString())
