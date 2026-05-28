@@ -1,31 +1,21 @@
 import { useState, useRef, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { prospectsApi, aiApi, captureApi, type Priority, type Prospect } from '@/lib/api'
+import { aiApi, captureApi, type Priority } from '@/lib/api'
 import { useOfflineCapture } from '@/hooks/useOfflineCapture'
 import { useUIStore } from '@/store/uiStore'
 import { useOfflineStore } from '@/store/offlineStore'
 import {
   Mic, MicOff, Camera, FileText, CheckCircle2, Loader2,
-  Search, X, Plus, Calendar, AlertCircle, ImagePlus,
+  X, Plus, Calendar, AlertCircle, ImagePlus,
   WifiOff, Cloud, CloudOff, Table2,
 } from 'lucide-react'
 import { syncToSheets, type SheetsPayload } from '@/lib/sheetsSync'
 
 const PRIORITIES: { value: Priority; label: string; color: string; activeColor: string }[] = [
-  { value: 'P0',        label: 'Hot',  color: 'border-red-200 text-red-700 bg-red-50',     activeColor: 'border-red-500 bg-red-500 text-white ring-2 ring-red-200'   },
-  { value: 'P1',        label: 'Warm', color: 'border-amber-200 text-amber-700 bg-amber-50', activeColor: 'border-amber-500 bg-amber-500 text-white ring-2 ring-amber-200' },
-  { value: 'P2',        label: 'Cold', color: 'border-blue-200 text-blue-700 bg-blue-50',  activeColor: 'border-blue-500 bg-blue-500 text-white ring-2 ring-blue-200' },
-  { value: 'Irrelevant',label: 'Skip', color: 'border-gray-200 text-gray-500 bg-gray-50',  activeColor: 'border-gray-400 bg-gray-400 text-white ring-2 ring-gray-200' },
+  { value: 'P0',        label: 'P0',         color: 'border-red-200 text-red-700 bg-red-50',     activeColor: 'border-red-500 bg-red-500 text-white ring-2 ring-red-200'   },
+  { value: 'P1',        label: 'P1',         color: 'border-amber-200 text-amber-700 bg-amber-50', activeColor: 'border-amber-500 bg-amber-500 text-white ring-2 ring-amber-200' },
+  { value: 'P2',        label: 'P2',         color: 'border-blue-200 text-blue-700 bg-blue-50',  activeColor: 'border-blue-500 bg-blue-500 text-white ring-2 ring-blue-200' },
+  { value: 'Irrelevant',label: 'Irrelevant', color: 'border-gray-200 text-gray-500 bg-gray-50',  activeColor: 'border-gray-400 bg-gray-400 text-white ring-2 ring-gray-200' },
 ]
-
-const PRIORITY_BADGE: Record<string, string> = {
-  P0: 'bg-red-100 text-red-700',
-  P1: 'bg-amber-100 text-amber-700',
-  P2: 'bg-blue-100 text-blue-700',
-  Irrelevant: 'bg-gray-100 text-gray-500',
-}
-
-const NEXT_STEP_MAX = 200
 
 type CapturedImage = {
   id: string
@@ -40,8 +30,10 @@ export default function LeadCapture() {
   const { pendingCount, isSyncing } = useOfflineStore()
   const { saveCapture } = useOfflineCapture()
 
-  const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [manualName, setManualName] = useState('')
+  const [companyName, setCompanyName] = useState('')
+  const [companyType, setCompanyType] = useState('')
+  const [designation, setDesignation] = useState('')
   const [notes, setNotes] = useState('')
   const [priority, setPriority] = useState<Priority | null>(null)
   const [nextStep, setNextStep] = useState('')
@@ -52,8 +44,6 @@ export default function LeadCapture() {
   const [scanError, setScanError] = useState<string | null>(null)
   const [scannedFields, setScannedFields] = useState<Record<string, string> | null>(null)
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showDropdown, setShowDropdown] = useState(false)
   const [saved, setSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -69,30 +59,8 @@ export default function LeadCapture() {
   const transcriptAccum = useRef('')
   const chunksRef = useRef<Blob[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const savedCaptureId = useRef<number | null>(null)
-
-  const { data: prospects = [] } = useQuery({
-    queryKey: ['prospect-search', searchQuery, activeEventId],
-    queryFn: () => prospectsApi.list({
-      search: searchQuery,
-      event_id: activeEventId || undefined,
-      limit: 10,
-    }),
-    enabled: searchQuery.length >= 1,
-  })
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
 
   // Recording timer
   useEffect(() => {
@@ -117,21 +85,7 @@ export default function LeadCapture() {
     }
   }, [])
 
-  const contactName = selectedProspect
-    ? `${selectedProspect.first_name} ${selectedProspect.last_name}`
-    : manualName
-
-  const handleSelectProspect = (p: Prospect) => {
-    setSelectedProspect(p)
-    setSearchQuery('')
-    setShowDropdown(false)
-  }
-
-  const clearSelection = () => {
-    setSelectedProspect(null)
-    setManualName('')
-    setSearchQuery('')
-  }
+  const contactName = manualName
 
   // ── Image handling ────────────────────────────────────────────────────────
 
@@ -164,8 +118,14 @@ export default function LeadCapture() {
       if (isCard) {
         try {
           const result = await aiApi.scanCard(file)
-          if (result.name && !selectedProspect) {
+          if (result.name) {
             setManualName(prev => prev.trim() ? prev : result.name)
+          }
+          if (result.company) {
+            setCompanyName(prev => prev.trim() ? prev : result.company)
+          }
+          if (result.title) {
+            setDesignation(prev => prev.trim() ? prev : result.title)
           }
 
           const fields: Record<string, string> = {}
@@ -216,21 +176,21 @@ export default function LeadCapture() {
 
       const result = await saveCapture({
         name: contactName,
-        company: scannedFields?.Company || undefined,
-        title: selectedProspect?.title || scannedFields?.Title || undefined,
-        phone: selectedProspect?.phone || scannedFields?.Phone || undefined,
-        email: selectedProspect?.email || scannedFields?.Email || undefined,
-        linkedin: selectedProspect?.linkedin_url || scannedFields?.LinkedIn || undefined,
+        company: companyName.trim() || scannedFields?.Company || undefined,
+        title: designation.trim() || scannedFields?.Title || undefined,
+        phone: scannedFields?.Phone || undefined,
+        email: scannedFields?.Email || undefined,
+        linkedin: scannedFields?.LinkedIn || undefined,
         priority: priority || 'P2',
-        segment: selectedProspect?.segment || 'cold',
+        segment: 'cold',
         notes: notes || undefined,
+        product_interest: companyType.trim() || undefined,
         next_step: nextStep || undefined,
         follow_up_date: nextStepDate || undefined,
         commitment_made: commitment || undefined,
         capture_method: captureMethod,
         image_count: images.length,
         captured_by: currentUser,
-        prospect_id: selectedProspect?.id,
       })
 
       // Upload images if online and capture was saved with an ID
@@ -255,13 +215,13 @@ export default function LeadCapture() {
       // Sync to Google Sheets (if webhook configured)
       const sheetsPayload: SheetsPayload = {
         name: contactName,
-        company:  scannedFields?.Company || '',
-        title:    selectedProspect?.title || scannedFields?.Title || '',
-        email:    selectedProspect?.email || scannedFields?.Email || '',
-        phone:    selectedProspect?.phone || scannedFields?.Phone || '',
-        linkedin: selectedProspect?.linkedin_url || scannedFields?.LinkedIn || '',
+        company:  companyName.trim() || scannedFields?.Company || '',
+        title:    designation.trim() || scannedFields?.Title || '',
+        email:    scannedFields?.Email || '',
+        phone:    scannedFields?.Phone || '',
+        linkedin: scannedFields?.LinkedIn || '',
         priority: priority || 'P2',
-        notes:    notes || '',
+        notes:    [notes, companyType.trim() ? `Type of company: ${companyType.trim()}` : ''].filter(Boolean).join('\n'),
         nextSteps:   nextStep || '',
         followUpDate: nextStepDate || '',
         captureMethod,
@@ -283,8 +243,10 @@ export default function LeadCapture() {
 
   const resetForm = () => {
     images.forEach(img => URL.revokeObjectURL(img.previewUrl))
-    setSelectedProspect(null)
     setManualName('')
+    setCompanyName('')
+    setCompanyType('')
+    setDesignation('')
     setNotes('')
     setPriority(null)
     setNextStep('')
@@ -474,86 +436,53 @@ export default function LeadCapture() {
       <section className="mb-6">
         <p className="text-sm font-semibold text-gray-800 mb-2">Who are you meeting?</p>
 
-        {selectedProspect ? (
-          <div className="card p-3 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-semibold text-sm shrink-0">
-              {selectedProspect.first_name[0]}{selectedProspect.last_name[0]}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="font-medium text-gray-900 text-sm truncate">
-                  {selectedProspect.first_name} {selectedProspect.last_name}
-                </p>
-                <span className={`badge text-[10px] px-1.5 py-0 ${PRIORITY_BADGE[selectedProspect.priority] || PRIORITY_BADGE.P2}`}>
-                  {selectedProspect.priority}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 truncate">{selectedProspect.title}</p>
-            </div>
-            <button onClick={clearSelection} className="text-gray-400 hover:text-gray-600 p-1">
+        <div className="relative mb-4">
+          <input
+            className="input pr-9"
+            placeholder="Type a name..."
+            value={manualName}
+            onChange={e => setManualName(e.target.value)}
+          />
+          {manualName && (
+            <button
+              onClick={() => setManualName('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              aria-label="Clear name"
+            >
               <X className="w-4 h-4" />
             </button>
-          </div>
-        ) : (
-          <div ref={dropdownRef} className="relative">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                className="input pl-9 pr-9"
-                placeholder="Search attendee or type a name..."
-                value={showDropdown ? searchQuery : manualName}
-                onChange={e => {
-                  const v = e.target.value
-                  setManualName(v)
-                  setSearchQuery(v)
-                  if (v.length >= 1) setShowDropdown(true)
-                }}
-                onFocus={() => {
-                  if (searchQuery.length >= 1 || manualName.length >= 1) setShowDropdown(true)
-                }}
-              />
-              {manualName && (
-                <button
-                  onClick={() => { setManualName(''); setSearchQuery(''); setShowDropdown(false) }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+          )}
+        </div>
 
-            {showDropdown && searchQuery.length >= 1 && (
-              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                {prospects.length > 0 ? (
-                  prospects.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => handleSelectProspect(p)}
-                      className="w-full text-left px-3 py-2.5 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-0"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-medium text-xs shrink-0">
-                        {p.first_name[0]}{p.last_name[0]}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-medium text-gray-900 truncate">{p.first_name} {p.last_name}</p>
-                          <span className={`badge text-[10px] px-1.5 py-0 shrink-0 ${PRIORITY_BADGE[p.priority] || PRIORITY_BADGE.P2}`}>
-                            {p.priority}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 truncate">{p.title}</p>
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-3 py-3 text-sm text-gray-500">
-                    No attendees found — name will be saved as typed
-                  </div>
-                )}
-              </div>
-            )}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-semibold text-gray-800 mb-2">Company Name</label>
+            <input
+              className="input"
+              placeholder="Optional"
+              value={companyName}
+              onChange={e => setCompanyName(e.target.value)}
+            />
           </div>
-        )}
+          <div>
+            <label className="block text-sm font-semibold text-gray-800 mb-2">Type of company</label>
+            <input
+              className="input"
+              placeholder="Optional"
+              value={companyType}
+              onChange={e => setCompanyType(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-800 mb-2">Designation</label>
+            <input
+              className="input"
+              placeholder="Optional"
+              value={designation}
+              onChange={e => setDesignation(e.target.value)}
+            />
+          </div>
+        </div>
       </section>
 
       {/* ── Section 2: Add information ── */}
@@ -756,34 +685,26 @@ export default function LeadCapture() {
         <p className="text-sm font-semibold text-gray-800 mb-2">Next steps</p>
         <div className="space-y-2">
           <div>
-            <input
+            <textarea
               className="input"
+              rows={4}
               placeholder="What needs to happen? e.g. Send proposal, Schedule demo..."
               value={nextStep}
-              onChange={e => { if (e.target.value.length <= NEXT_STEP_MAX) setNextStep(e.target.value) }}
-              maxLength={NEXT_STEP_MAX}
+              onChange={e => setNextStep(e.target.value)}
             />
-            <div className="flex justify-end mt-0.5">
-              <span className={`text-[11px] ${
-                nextStep.length >= NEXT_STEP_MAX
-                  ? 'text-red-500 font-semibold'
-                  : nextStep.length >= NEXT_STEP_MAX * 0.8
-                  ? 'text-amber-500'
-                  : 'text-gray-300'
-              }`}>
-                {nextStep.length}/{NEXT_STEP_MAX}
-              </span>
-            </div>
           </div>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="date"
-              className="input pl-9"
-              value={nextStepDate}
-              onChange={e => setNextStepDate(e.target.value)}
-              min={new Date().toISOString().split('T')[0]}
-            />
+          <div>
+            <label className="block text-sm font-semibold text-gray-800 mb-2">Due date</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="date"
+                className="input pl-9"
+                value={nextStepDate}
+                onChange={e => setNextStepDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
           </div>
         </div>
       </section>

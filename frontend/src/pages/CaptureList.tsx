@@ -78,8 +78,9 @@ function CaptureDetailsModal({
               </div>
               <dl className="grid gap-4 sm:grid-cols-2">
                 <DetailField label="Name" value={capture.name} />
-                <DetailField label="Company" value={capture.company} />
-                <DetailField label="Title" value={capture.title} />
+                <DetailField label="Company Name" value={capture.company} />
+                <DetailField label="Type of company" value={capture.product_interest} />
+                <DetailField label="Designation" value={capture.title} />
                 <DetailField label="Segment" value={capture.segment} />
                 <DetailField label="Priority" value={capture.priority} />
                 <DetailField label="Captured by" value={capture.captured_by} />
@@ -155,7 +156,12 @@ function CaptureRow({
         <div className="font-medium text-gray-900">{capture.name}</div>
         <div className="text-xs text-gray-500">{capture.company || '-'}</div>
       </td>
-      <td className="px-4 py-3 align-top text-sm text-gray-700">{capture.title || '-'}</td>
+      <td className="px-4 py-3 align-top text-sm text-gray-700">
+        <div>{capture.title || '-'}</div>
+        {capture.product_interest && (
+          <div className="mt-1 text-xs text-gray-500">{capture.product_interest}</div>
+        )}
+      </td>
       <td className="px-4 py-3 align-top">
         <div className="space-y-1 text-xs text-gray-600">
           {capture.email && (
@@ -276,7 +282,7 @@ export default function CaptureList() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Name</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Title</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Designation</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Contact</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Priority</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Notes</th>
