@@ -87,6 +87,14 @@ export interface LeadCapture {
   synced_at?: string
 }
 
+export interface CaptureImage {
+  id: number
+  capture_id: number
+  filename: string
+  image_type: string
+  created_at: string
+}
+
 export interface FollowUp {
   id: number
   prospect_id: number
@@ -259,6 +267,10 @@ export const captureApi = {
   create: (data: unknown) => api.post<LeadCapture>('/capture', data).then(r => r.data),
   list: (params?: Record<string, unknown>) =>
     api.get<LeadCapture[]>('/capture', { params }).then(r => r.data),
+  listImages: (captureId: number) =>
+    api.get<CaptureImage[]>(`/capture/${captureId}/images`).then(r => r.data),
+  imageUrl: (filename: string) =>
+    `${api.defaults.baseURL}/capture/images/file/${encodeURIComponent(filename)}`,
   uploadImage: (captureId: number, file: File, imageType: string) => {
     const fd = new FormData()
     fd.append('file', file)

@@ -14,15 +14,22 @@ const PRIORITY_CLASS: Record<Priority, string> = {
   Irrelevant: 'bg-gray-100 text-gray-500',
 }
 
-function formatDate(value?: string) {
+function parseServerDate(value?: string) {
   if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
+  return new Date(/[zZ]|[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}Z`)
+}
+
+function formatDate(value?: string) {
+  const date = parseServerDate(value)
+  if (date === '-') return '-'
+  if (Number.isNaN(date.getTime())) return value || '-'
   return new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Asia/Kolkata',
+    timeZoneName: 'short',
   }).format(date)
 }
 
@@ -44,6 +51,12 @@ function CaptureDetailsModal({
   capture: LeadCapture
   onClose: () => void
 }) {
+  const { data: images = [], isLoading: imagesLoading } = useQuery({
+    queryKey: ['capture-images', capture.id],
+    queryFn: () => captureApi.listImages(capture.id),
+    enabled: Boolean(capture.id),
+  })
+
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-6">
       <div className="w-full max-h-[92vh] overflow-hidden rounded-t-xl bg-white shadow-xl sm:max-w-3xl sm:rounded-xl">
@@ -116,12 +129,46 @@ function CaptureDetailsModal({
           <section className="mt-6">
             <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-900">
               <ImageIcon className="w-4 h-4 text-gray-400" />
+              Images
+            </div>
+            {imagesLoading ? (
+              <div className="text-sm text-gray-500">Loading images...</div>
+            ) : images.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {images.map(image => (
+                  <a
+                    key={image.id}
+                    href={captureApi.imageUrl(image.filename)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                  >
+                    <img
+                      src={captureApi.imageUrl(image.filename)}
+                      alt={image.image_type}
+                      className="h-48 w-full object-cover transition-transform group-hover:scale-[1.02]"
+                    />
+                    <div className="flex items-center justify-between px-3 py-2 text-xs text-gray-600">
+                      <span>{image.image_type}</span>
+                      <span>{formatDate(image.created_at)}</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No images attached</div>
+            )}
+          </section>
+
+          <section className="mt-6">
+            <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-900">
+              <CalendarDays className="w-4 h-4 text-gray-400" />
               Capture
             </div>
             <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <DetailField label="Capture method" value={capture.capture_method || 'manual'} />
               <DetailField label="Image count" value={capture.image_count ?? 0} />
-              <DetailField label="Captured at" value={formatDate(capture.captured_at)} />
+              <DetailField label="Date of lead capture" value={formatDate(capture.captured_at)} />
               <DetailField label="Synced at" value={formatDate(capture.synced_at)} />
               <DetailField label="Offline ID" value={capture.offline_id} />
               <DetailField label="Capture ID" value={capture.id} />
@@ -154,13 +201,11 @@ function CaptureRow({
     >
       <td className="px-4 py-3 align-top">
         <div className="font-medium text-gray-900">{capture.name}</div>
-        <div className="text-xs text-gray-500">{capture.company || '-'}</div>
       </td>
+      <td className="px-4 py-3 align-top text-sm text-gray-700">{capture.company || '-'}</td>
+      <td className="px-4 py-3 align-top text-sm text-gray-700">{capture.product_interest || '-'}</td>
       <td className="px-4 py-3 align-top text-sm text-gray-700">
         <div>{capture.title || '-'}</div>
-        {capture.product_interest && (
-          <div className="mt-1 text-xs text-gray-500">{capture.product_interest}</div>
-        )}
       </td>
       <td className="px-4 py-3 align-top">
         <div className="space-y-1 text-xs text-gray-600">
@@ -192,21 +237,14 @@ function CaptureRow({
       </td>
       <td className="px-4 py-3 align-top text-sm text-gray-700 max-w-xs">
         <p className="max-h-10 overflow-hidden">{capture.notes || '-'}</p>
-        {capture.next_step && (
-          <p className="mt-1 text-xs font-medium text-gray-500">Next: {capture.next_step}</p>
-        )}
+      </td>
+      <td className="px-4 py-3 align-top text-sm text-gray-700 max-w-xs">
+        <p className="max-h-10 overflow-hidden whitespace-pre-wrap">{capture.next_step || '-'}</p>
       </td>
       <td className="px-4 py-3 align-top text-sm text-gray-700">
         <div className="flex items-center gap-1.5">
           <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
           {capture.follow_up_date || '-'}
-        </div>
-      </td>
-      <td className="px-4 py-3 align-top text-sm text-gray-700">
-        <div>{capture.capture_method || 'manual'}</div>
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-          <ImageIcon className="w-3.5 h-3.5" />
-          {capture.image_count ?? 0}
         </div>
       </td>
       <td className="px-4 py-3 align-top text-xs text-gray-500">{formatDate(capture.captured_at)}</td>
@@ -246,7 +284,7 @@ export default function CaptureList() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Saved Leads</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {counts.total} captures, {counts.P0} hot, {counts.withImages} with images
+            {counts.total} captures, {counts.P0} P0, {counts.withImages} with images
           </p>
         </div>
         <button onClick={() => refetch()} className="btn-secondary md:self-start">
@@ -278,17 +316,19 @@ export default function CaptureList() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] text-left">
+            <table className="w-full min-w-[1280px] text-left">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Name</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Company name</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Type of company</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Designation</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Contact</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Priority</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Notes</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Follow-up</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Method</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Captured</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Next steps</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Due</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-500">Date of lead capture</th>
                 </tr>
               </thead>
               <tbody className="bg-white">

@@ -5,7 +5,7 @@ import { useUIStore } from '@/store/uiStore'
 import { useOfflineStore } from '@/store/offlineStore'
 import {
   Mic, MicOff, Camera, FileText, CheckCircle2, Loader2,
-  X, Plus, Calendar, AlertCircle, ImagePlus,
+  X, Plus, Calendar, AlertCircle, ImagePlus, ChevronLeft, ChevronRight,
   WifiOff, Cloud, CloudOff, Table2,
 } from 'lucide-react'
 import { syncToSheets, type SheetsPayload } from '@/lib/sheetsSync'
@@ -25,6 +25,38 @@ type CapturedImage = {
   scannedFields?: Record<string, string> | null
 }
 
+const toDateValue = (date: Date) => {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const formatDueDate = (value: string) => {
+  if (!value) return 'Select due date'
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  if (Number.isNaN(date.getTime())) return 'Select due date'
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
+}
+
+const buildCalendarDays = (monthDate: Date) => {
+  const year = monthDate.getFullYear()
+  const month = monthDate.getMonth()
+  const first = new Date(year, month, 1)
+  const start = new Date(year, month, 1 - first.getDay())
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    return date
+  })
+}
+
 export default function LeadCapture() {
   const { activeEventId, currentUser } = useUIStore()
   const { pendingCount, isSyncing } = useOfflineStore()
@@ -38,6 +70,8 @@ export default function LeadCapture() {
   const [priority, setPriority] = useState<Priority | null>(null)
   const [nextStep, setNextStep] = useState('')
   const [nextStepDate, setNextStepDate] = useState('')
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date())
   const [activeInput, setActiveInput] = useState<'text' | 'voice' | 'scan' | null>(null)
 
   const [images, setImages] = useState<CapturedImage[]>([])
@@ -86,6 +120,8 @@ export default function LeadCapture() {
   }, [])
 
   const contactName = manualName
+  const todayValue = toDateValue(new Date())
+  const calendarDays = buildCalendarDays(calendarMonth)
 
   // ── Image handling ────────────────────────────────────────────────────────
 
@@ -697,13 +733,100 @@ export default function LeadCapture() {
             <label className="block text-sm font-semibold text-gray-800 mb-2">Due date</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="date"
-                className="input pl-9"
-                value={nextStepDate}
-                onChange={e => setNextStepDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-              />
+              <button
+                type="button"
+                onClick={() => setDatePickerOpen(open => !open)}
+                className={`input flex w-full items-center pl-9 text-left ${
+                  nextStepDate ? 'text-gray-900' : 'text-gray-400'
+                }`}
+              >
+                {formatDueDate(nextStepDate)}
+              </button>
+
+              {datePickerOpen && (
+                <div className="absolute left-0 right-0 z-30 mt-2 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
+                  <div className="mb-3 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                      className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                      aria-label="Previous month"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(calendarMonth)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                      className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                      aria-label="Next month"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-gray-400">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                      <div key={day} className="py-1">{day}</div>
+                    ))}
+                  </div>
+
+                  <div className="mt-1 grid grid-cols-7 gap-1">
+                    {calendarDays.map(date => {
+                      const value = toDateValue(date)
+                      const isSelected = value === nextStepDate
+                      const isPast = value < todayValue
+                      const isCurrentMonth = date.getMonth() === calendarMonth.getMonth()
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          disabled={isPast}
+                          onClick={() => {
+                            setNextStepDate(value)
+                            setDatePickerOpen(false)
+                          }}
+                          className={`h-9 rounded-lg text-sm font-medium transition-colors ${
+                            isSelected
+                              ? 'bg-brand-600 text-white'
+                              : isPast
+                              ? 'cursor-not-allowed text-gray-300'
+                              : isCurrentMonth
+                              ? 'text-gray-800 hover:bg-brand-50 hover:text-brand-700'
+                              : 'text-gray-400 hover:bg-gray-50'
+                          }`}
+                        >
+                          {date.getDate()}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setNextStepDate('')}
+                      className="text-sm font-medium text-gray-500 hover:text-gray-800"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const today = new Date()
+                        setCalendarMonth(new Date(today.getFullYear(), today.getMonth(), 1))
+                        setNextStepDate(toDateValue(today))
+                        setDatePickerOpen(false)
+                      }}
+                      className="text-sm font-semibold text-brand-700 hover:text-brand-800"
+                    >
+                      Today
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
