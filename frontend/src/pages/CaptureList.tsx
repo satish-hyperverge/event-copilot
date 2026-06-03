@@ -4,7 +4,7 @@ import { captureApi, type LeadCapture, type Priority } from '@/lib/api'
 import { useUIStore } from '@/store/uiStore'
 import {
   RefreshCw, Search, Table2, Mail, Phone, Linkedin, CalendarDays, Image as ImageIcon,
-  X, User, Building2, FileText,
+  X, User, Building2, FileText, Download,
 } from 'lucide-react'
 
 const PRIORITY_CLASS: Record<Priority, string> = {
@@ -43,6 +43,76 @@ function formatDueDate(value?: string) {
     month: 'short',
     year: 'numeric',
   }).format(date)
+}
+
+function formatCsvDateTime(value?: string) {
+  const date = parseServerDate(value)
+  if (date === '-') return ''
+  if (Number.isNaN(date.getTime())) return value || ''
+  return date.toISOString()
+}
+
+function csvValue(value?: string | number | null) {
+  if (value === null || value === undefined) return ''
+  const normalized = String(value).replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  return `"${normalized.replace(/"/g, '""')}"`
+}
+
+function downloadCsv(captures: LeadCapture[]) {
+  const headers = [
+    'Name',
+    'Company name',
+    'Type of company',
+    'Designation',
+    'Email',
+    'Phone',
+    'LinkedIn',
+    'Priority',
+    'Segment',
+    'Notes',
+    'Next steps',
+    'Due date',
+    'Commitment made',
+    'Capture method',
+    'Image count',
+    'Captured by',
+    'Date of capture',
+  ]
+
+  const rows = captures.map(capture => [
+    capture.name,
+    capture.company,
+    capture.product_interest,
+    capture.title,
+    capture.email,
+    capture.phone,
+    capture.linkedin,
+    capture.priority,
+    capture.segment,
+    capture.notes,
+    capture.next_step,
+    capture.follow_up_date,
+    capture.commitment_made,
+    capture.capture_method || 'manual',
+    capture.image_count ?? 0,
+    capture.captured_by,
+    formatCsvDateTime(capture.captured_at),
+  ])
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(csvValue).join(','))
+    .join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  const date = new Date().toISOString().slice(0, 10)
+
+  link.href = url
+  link.download = `saved-leads-${date}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 function DetailField({ label, value }: { label: string; value?: string | number | null }) {
@@ -343,10 +413,21 @@ export default function CaptureList() {
             {counts.total} captures, {counts.P0} P0, {counts.withImages} with images
           </p>
         </div>
-        <button onClick={() => refetch()} className="btn-secondary md:self-start">
-          <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex flex-wrap gap-2 md:self-start">
+          <button
+            onClick={() => downloadCsv(filteredCaptures)}
+            className="btn-secondary"
+            disabled={isLoading || filteredCaptures.length === 0}
+            title="Download visible saved leads as CSV"
+          >
+            <Download className="w-4 h-4" />
+            Download CSV
+          </button>
+          <button onClick={() => refetch()} className="btn-secondary">
+            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center">
